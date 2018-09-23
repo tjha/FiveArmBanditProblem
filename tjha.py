@@ -2,9 +2,16 @@ import numpy as np
 import random
 import math
 
+######################################################
 # Tejas Jha
 # 24 September 2018
-#
+# EECS 498 Special Topics: Reinforcement Learning
+# Homework 1
+# Code corresponding to Q4 and Q5
+######################################################
+
+
+# For Q4:
 #
 # This program provides experimentations with Epsilon-Greedy, 
 # Optimistic Initial Values, and UCB algorithms to learn solutions
@@ -16,6 +23,11 @@ import math
 # Each algorithm should be performed for 2000 runs for each parameter set
 # Each run should choose actions over 1000 time steps
 
+# For Q5
+#
+#
+#
+#
 
 
 # Creation of class to store Bernoulli distribution mean and return reward
@@ -27,10 +39,17 @@ class Arm:
     # Simulate Bernoulli distribution
     # Get random float between 0 and 1, return 0 if greater than mean, 1 otherwise
     def reward(self):
+        # The code below will perform the same general functionality as using np.random.binomial
+        # However, it is slightly faster in performace, so I use it here instead
+        
         if random.random() > self.mean:
             return 0.0
         else:
             return 1.0
+
+        # This can be used instead of the above code for a more library method of 
+        # getting a bernoulli distribution, but it is not necessarily needed
+        # return np.random.binomial(1, self.mean, 1)
     
 
 
@@ -50,7 +69,7 @@ class EpsilonGreedy:
 
     # Performs a single time step update through epsilon-greedy algorithm
     def step(self, arms):
-        # Step 1 - Determin which arm to pick next
+        # Step 1 - Determine which arm to pick next
         selected_arm_idx = 0
         if random.random() > self.epsilon:
             # EXPLOITATION
@@ -89,8 +108,6 @@ class ModelClass:
 
     def step(self, iteration, arms):
 
-        print(iteration)
-
         # Step 1 -Select the Action with the largest upper bound
         # If count is 0, the index is given priority
         all_zero_idx = [idx for idx, val in enumerate(self.counts) if val == 0]
@@ -100,7 +117,7 @@ class ModelClass:
             selected_arm_idx = random.choice(all_zero_idx)
         else:
             # Select the arm with the largest estimated upper bound
-            estimates = self.values
+            estimates = self.values.copy()
 
             for idx in range(len(estimates)):
                 estimates[idx] += self.c*math.sqrt(math.log(iteration)/self.counts[idx])
@@ -218,22 +235,25 @@ def upper_confidence_bound_alg(c, arms):
         
 
 def main():
+
+    # Question 4 Code
+
     # Create List of arm class variables called arms set with means for Bernoulli distributions
-    means = [0.8, 0.275, 0.45, 0.625, 0.8]
+    means = [0.1, 0.275, 0.45, 0.625, 0.8]
     arms = np.array(list(map(Arm, means)))
 
     # Perform Epsilon-Greedy algorithm with Q1 = 0 and 
     # for each epsilon = [0.01, 0.1, 0.3]
     epsilon_list = [0.01, 0.1, 0.3]
     for epsilon in epsilon_list:
-        epsilon_greedy_alg(epsilon, arms)
+        #epsilon_greedy_alg(epsilon, arms)
         print("Finished with Epsilon-Greedy Algorithm for epsilon = " + str(epsilon))
     
     # Perform Optimistic Initial Value algorithm with epsilon = 0 (always greedy)
     # for each Q1 = [1,5,50]
     initial_val_list = [1.0, 5.0, 50.0]
     for val in initial_val_list:
-        optimistic_initial_value_alg(val,arms)
+        #optimistic_initial_value_alg(val,arms)
         print("Finished with Optimistic Initial Value Algorithm for initial value = " + str(val))
 
     # Perform UCB algorithm with Q1 = 0
@@ -242,6 +262,13 @@ def main():
     for val in c_vals:
         upper_confidence_bound_alg(val, arms)
         print("Finished with UCB Algorithm for c = " + str(val))
+
+
+    ###########################################################################################
+
+    # Question 5 Code
+
+
 
 
 if __name__ == "__main__":
