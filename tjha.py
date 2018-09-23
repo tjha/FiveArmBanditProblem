@@ -51,6 +51,10 @@ class Arm:
         # This can be used instead of the above code for a more library method of 
         # getting a bernoulli distribution, but it is not necessarily needed
         # return np.random.binomial(1, self.mean, 1)
+
+    # Return the mean of the current Arm's Bernoulli distribution
+    def getMean(self):
+        return self.mean
     
 
 
@@ -69,6 +73,8 @@ class EpsilonGreedy:
         self.values = values
         self.regret = [ ]
         self.rewards = [ ]
+        self.optimal_count = 0
+        self.optimal = [ ]
 
     # Performs a single time step update through epsilon-greedy algorithm
     def step(self, iterations, arms):
@@ -103,7 +109,14 @@ class EpsilonGreedy:
         # Update cummulative regret value for this time step
         self.regret.append(iterations*(0.8) - sum(self.rewards))
 
-    # Get the action-value estimates for EpsilonGreedy
+        # If optimal choice was chosen, update optimal_count
+        if selected_arm_idx == 4:
+            self.optimal_count += 1
+        # Update Optimal Percentages
+        self.optimal.append(self.optimal_count/iterations)
+
+
+    # Get the action-value estimates
     def getValues(self):
         return self.values
 
@@ -111,8 +124,13 @@ class EpsilonGreedy:
     def getRegret(self):
         return self.regret
 
+    # Get the rewards at certain moments in time
     def getRewards(self):
         return self.rewards
+    
+    # Get the total number of times the optimal arm was chosen
+    def getOptimal(self):
+        return self.optimal
 
 # Creation of another Class variable that may be fixed to be universal type
 class ModelClass:
@@ -121,8 +139,12 @@ class ModelClass:
         self.counts = counts
         self.values = values
         self.c = c
+        self.regret = [ ]
+        self.rewards = [ ]
+        self.optimal_count = 0
+        self.optimal = [ ]
 
-    def step(self, iteration, arms):
+    def step(self, iterations, arms):
 
         # Step 1 -Select the Action with the largest upper bound
         # If count is 0, the index is given priority
@@ -136,7 +158,7 @@ class ModelClass:
             estimates = self.values.copy()
 
             for idx in range(len(estimates)):
-                estimates[idx] += self.c*math.sqrt(math.log(iteration)/self.counts[idx])
+                estimates[idx] += self.c*math.sqrt(math.log(iterations)/self.counts[idx])
             
             max_value = max(estimates)
             all_max_idx = [idx for idx, val in enumerate(estimates) if val == max_value]
@@ -156,13 +178,49 @@ class ModelClass:
         # Step 4 - Update action-value
         self.values[selected_arm_idx] += (1 / self.counts[selected_arm_idx])*(reward - self.values[selected_arm_idx])
         
+        # Update reward at time step
+        self.rewards.append(reward)
+
+        # Update cummulative regret value for this time step
+        self.regret.append(iterations*(0.8) - sum(self.rewards))
+
+        # If optimal choice was chosen, update optimal_count
+        if selected_arm_idx == 4:
+            self.optimal_count += 1
+        # Update Optimal Percentages
+        self.optimal.append(self.optimal_count/iterations)
+
+    # Get the action-value estimates
     def getValues(self):
         return self.values
+
+    # Get the Cumulative regret at certain moment in time
+    def getRegret(self):
+        return self.regret
+
+    # Get the rewards at certain moments in time
+    def getRewards(self):
+        return self.rewards
+    
+    # Get the total number of times the optimal arm was chosen
+    def getOptimal(self):
+        return self.optimal
 
 
 
 # Epsilon-Greedy Algorithm run 2000 times given epsilon value
 def epsilon_greedy_alg(epsilon, arms):
+
+    '''
+    # Get optimal arm index
+    optimal_arm_idx = 0
+    optimal_mean = 0
+    i = 0
+    for arm in arms:
+        if arm.getMean > optimal_mean:
+            optimal_arm_idx = i
+        i += 1
+    '''
 
     # Print message to output describing Algorithm being run
     print("**********************************************************************")
@@ -170,6 +228,10 @@ def epsilon_greedy_alg(epsilon, arms):
 
     # Store sum of regrets
     regrets_avg = np.zeros([1,1000])
+    # Store average rewards at each time step for all runs
+    avg_rewards = np.zeros([1,1000])
+    # Average the % Optimal Action at each time step for all runs
+    percent_optimal_action = np.zeros([1,1000])
 
     # Loop through algorithm for 2000 runs
     for current_run in range(2000):
@@ -189,14 +251,23 @@ def epsilon_greedy_alg(epsilon, arms):
         np_arr = np_arr/2000.0
         regrets_avg += np_arr
 
+        # Update average of rewards for all timesteps
+        avg_rewards += (np.array(model.getRewards()).reshape(1,1000))
+
+        # Update averages of % Optimal Action at each time step
+        percent_optimal_action += (np.array(model.getOptimal()).reshape(1,1000))
+
         if (current_run + 1) % 500 == 0:
             print("     Completed Run #" + str(current_run + 1))
             print(model.getValues())
 
+    avg_rewards = avg_rewards / 2000.0
+    percent_optimal_action = percent_optimal_action / 2000.0
+
     print("Completed Runs for epsilon = " + str(epsilon))
     #print("regrets_avg = " + str(regrets_avg))
     print("**********************************************************************")
-    return regrets_avg
+    return regrets_avg, avg_rewards, percent_optimal_action
 
 
 # Optimistic Initial Value Algorithm run 2000 times given inital value (assume greedy arm selection)
@@ -206,8 +277,12 @@ def optimistic_initial_value_alg(initial_val, arms):
     print("**********************************************************************")
     print("Performing Optimistic Initial Value Algorithm 2000 times with inital value = " + str(initial_val))
 
-    # Store sum of regrests
-    #regrets_sum = np.empty([1000,1])
+    # Store sum of regrets
+    regrets_avg = np.zeros([1,1000])
+    # Store average rewards at each time step for all runs
+    avg_rewards = np.zeros([1,1000])
+    # Average the % Optimal Action at each time step for all runs
+    percent_optimal_action = np.zeros([1,1000])
 
     # Loop through algorithm for 2000 runs
     for current_run in range(2000):
@@ -221,14 +296,29 @@ def optimistic_initial_value_alg(initial_val, arms):
         # Perform a single run through algorithm using 1000 time steps
         for i in range(1000):
             model.step(i+1,arms)
-            #regrets.append(model.getRegret())
+        
+        # Update sum of regrets
+        np_arr = np.array(model.getRegret())
+        np_arr = np_arr.reshape(1,1000)
+        np_arr = np_arr/2000.0
+        regrets_avg += np_arr
+
+        # Update average of rewards for all timesteps
+        avg_rewards += (np.array(model.getRewards()).reshape(1,1000))
+
+        # Update averages of % Optimal Action at each time step
+        percent_optimal_action += (np.array(model.getOptimal()).reshape(1,1000))
 
         if (current_run + 1) % 500 == 0:
             print("     Completed Run #" + str(current_run + 1))
             print(model.getValues())
 
+    avg_rewards = avg_rewards / 2000.0
+    percent_optimal_action = percent_optimal_action / 2000.0
+
     print("Completed Runs for initial value = " + str(initial_val))
     print("**********************************************************************")
+    return regrets_avg, avg_rewards, percent_optimal_action
 
 
 # Upper Confidence Bound (UCB) Algorithm run 2000 times with given c parameter
@@ -237,6 +327,13 @@ def upper_confidence_bound_alg(c, arms):
     # Print message to output describing Algorithm being run
     print("**********************************************************************")
     print("Performing UCB Algorithm 2000 times with c = " + str(c))
+
+    # Store sum of regrets
+    regrets_avg = np.zeros([1,1000])
+    # Store average rewards at each time step for all runs
+    avg_rewards = np.zeros([1,1000])
+    # Average the % Optimal Action at each time step for all runs
+    percent_optimal_action = np.zeros([1,1000])
 
     # Loop through algorithm for 2000 runs
     for current_run in range(2000):
@@ -251,12 +348,28 @@ def upper_confidence_bound_alg(c, arms):
         for i in range(1000):
             model.step(i+1,arms)
 
+        # Update sum of regrets
+        np_arr = np.array(model.getRegret())
+        np_arr = np_arr.reshape(1,1000)
+        np_arr = np_arr/2000.0
+        regrets_avg += np_arr
+
+        # Update average of rewards for all timesteps
+        avg_rewards += (np.array(model.getRewards()).reshape(1,1000))
+
+        # Update averages of % Optimal Action at each time step
+        percent_optimal_action += (np.array(model.getOptimal()).reshape(1,1000))
+
         if (current_run + 1) % 500 == 0:
             print("     Completed Run #" + str(current_run + 1))
             print(model.getValues())
 
+    avg_rewards = avg_rewards / 2000.0
+    percent_optimal_action = percent_optimal_action / 2000.0
+
     print("Completed Runs for c = " + str(c))
     print("**********************************************************************")
+    return regrets_avg, avg_rewards, percent_optimal_action
 
 
         
@@ -269,37 +382,124 @@ def main():
     means = [0.1, 0.275, 0.45, 0.625, 0.8]
     arms = np.array(list(map(Arm, means)))
 
-    plt.figure(1)
-    times = np.array(range(1,1001)).reshape(1,1000)
+    fig = plt.figure(1)
+    fig.suptitle('Graphs for Q4 By Tejas Jha', fontsize=16)
+    times = (np.array(range(1,1001)).reshape(1,1000))
     regrets_avg = np.zeros([3,1000])
+    avg_rewards = np.zeros([3,1000])
+    percent_optimal_action = np.zeros([3,1000])
 
     # Perform Epsilon-Greedy algorithm with Q1 = 0 and 
     # for each epsilon = [0.01, 0.1, 0.3]
     epsilon_list = [0.01, 0.1, 0.3]
     for i in range(len(epsilon_list)):
-        regrets_avg[i] = epsilon_greedy_alg(epsilon_list[i], arms)
+        regrets_avg[i], avg_rewards[i], percent_optimal_action[i] = epsilon_greedy_alg(epsilon_list[i], arms)
         print("Finished with Epsilon-Greedy Algorithm for epsilon = " + str(epsilon_list[i]))
 
     plt.subplot(331)
-    plt.plot(times[0], regrets_avg[0], 'r')
-    plt.plot(times[0], regrets_avg[1], 'b')
-    plt.plot(times[0], regrets_avg[2], 'g')
-    plt.show()
+    #plt.title("Epsilon-Greedy Cumulative Regret vs Time Step")
+    plt.xlabel("Time Step")
+    plt.ylabel("Cumulative Regret")
+    plt.plot(times[0], regrets_avg[0], 'r', label='Epsilon = 0.01')
+    plt.plot(times[0], regrets_avg[1], 'b', label='Epsilon = 0.1')
+    plt.plot(times[0], regrets_avg[2], 'g', label='Epsilon = 0.3')
+    plt.legend(loc='upper left', fontsize='x-small')
+
+    plt.subplot(332)
+    #plt.title("Epsilon-Greedy Averaged Reward vs Time Step")
+    plt.xlabel("Time Step")
+    plt.ylabel("Averaged Reward")
+    plt.plot(times[0], avg_rewards[0], 'r', label='Epsilon = 0.01')
+    plt.plot(times[0], avg_rewards[1], 'b', label='Epsilon = 0.1')
+    plt.plot(times[0], avg_rewards[2], 'g', label='Epsilon = 0.3')
+    plt.legend(loc='upper left', fontsize='x-small')
+
+    plt.subplot(333)
+    #plt.title("Epsilon-Greedy % Optimal Action vs Time Step")
+    plt.xlabel("Time Step")
+    plt.ylabel("% Optimal Action")
+    plt.plot(times[0], percent_optimal_action[0], 'r', label='Epsilon = 0.01')
+    plt.plot(times[0], percent_optimal_action[1], 'b', label='Epsilon = 0.1')
+    plt.plot(times[0], percent_optimal_action[2], 'g', label='Epsilon = 0.3')
+    plt.legend(loc='upper left', fontsize='x-small')
+
+    regrets_avg = np.zeros([3,1000])
+    avg_rewards = np.zeros([3,1000])
+    percent_optimal_action = np.zeros([3,1000])
     
     # Perform Optimistic Initial Value algorithm with epsilon = 0 (always greedy)
     # for each Q1 = [1,5,50]
     initial_val_list = [1.0, 5.0, 50.0]
-    for val in initial_val_list:
-        #optimistic_initial_value_alg(val,arms)
-        print("Finished with Optimistic Initial Value Algorithm for initial value = " + str(val))
+    for i in range(len(initial_val_list)):
+        regrets_avg[i], avg_rewards[i], percent_optimal_action[i] = optimistic_initial_value_alg(initial_val_list[i],arms)
+        print("Finished with Optimistic Initial Value Algorithm for initial value = " + str(initial_val_list[i]))
+
+    plt.subplot(334)
+    #plt.title("OIV Cumulative Regret vs Time Step")
+    plt.xlabel("Time Step")
+    plt.ylabel("Cumulative Regret")
+    plt.plot(times[0], regrets_avg[0], 'r', label='Q1 = 1.0')
+    plt.plot(times[0], regrets_avg[1], 'b', label='Q1 = 5.0')
+    plt.plot(times[0], regrets_avg[2], 'g', label='Q1 = 50.0')
+    plt.legend(loc='upper left', fontsize='x-small')
+
+    plt.subplot(335)
+    #plt.title("OIV Averaged Reward vs Time Step")
+    plt.xlabel("Time Step")
+    plt.ylabel("Averaged Reward")
+    plt.plot(times[0], avg_rewards[0], 'r', label='Q1 = 1.0')
+    plt.plot(times[0], avg_rewards[1], 'b', label='Q1 = 5.0')
+    plt.plot(times[0], avg_rewards[2], 'g', label='Q1 = 50.0')
+    plt.legend(loc='upper left', fontsize='x-small')
+
+    plt.subplot(336)
+    #plt.title("OIV % Optimal Action vs Time Step")
+    plt.xlabel("Time Step")
+    plt.ylabel("% Optimal Action")
+    plt.plot(times[0], percent_optimal_action[0], 'r', label='Q1 = 1.0')
+    plt.plot(times[0], percent_optimal_action[1], 'b', label='Q1 = 5.0')
+    plt.plot(times[0], percent_optimal_action[2], 'g', label='Q1 = 50.0')
+    plt.legend(loc='upper left', fontsize='x-small')
+
+    regrets_avg = np.zeros([3,1000])
+    avg_rewards = np.zeros([3,1000])
+    percent_optimal_action = np.zeros([3,1000])
 
     # Perform UCB algorithm with Q1 = 0
     # for each c = [0.2, 1, 2]
     c_vals = [0.2, 1, 2]
-    for val in c_vals:
-        #upper_confidence_bound_alg(val, arms)
-        print("Finished with UCB Algorithm for c = " + str(val))
+    for i in range(len(c_vals)):
+        regrets_avg[i], avg_rewards[i], percent_optimal_action[i] = upper_confidence_bound_alg(c_vals[i], arms)
+        print("Finished with UCB Algorithm for c = " + str(c_vals[i]))
 
+    plt.subplot(337)
+    #plt.title("UCB Cumulative Regret vs Time Step")
+    plt.xlabel("Time Step")
+    plt.ylabel("Cumulative Regret")
+    plt.plot(times[0], regrets_avg[0], 'r', label='c = 0.2')
+    plt.plot(times[0], regrets_avg[1], 'b', label='c = 1.0')
+    plt.plot(times[0], regrets_avg[2], 'g', label='c = 2.0')
+    plt.legend(loc='upper left', fontsize='x-small')
+
+    plt.subplot(338)
+    #plt.title("UCB Averaged Reward vs Time Step")
+    plt.xlabel("Time Step")
+    plt.ylabel("Averaged Reward")
+    plt.plot(times[0], avg_rewards[0], 'r', label='c = 0.2')
+    plt.plot(times[0], avg_rewards[1], 'b', label='c = 1.0')
+    plt.plot(times[0], avg_rewards[2], 'g', label='c = 2.0')
+    plt.legend(loc='upper left', fontsize='x-small')
+
+    plt.subplot(339)
+    #plt.title("UCB % Optimal Action vs Time Step")
+    plt.xlabel("Time Step")
+    plt.ylabel("% Optimal Action")
+    plt.plot(times[0], percent_optimal_action[0], 'r', label='c = 0.2')
+    plt.plot(times[0], percent_optimal_action[1], 'b', label='c = 1.0')
+    plt.plot(times[0], percent_optimal_action[2], 'g', label='c = 2.0')
+    plt.legend(loc='upper left', fontsize='x-small')
+
+    plt.show()
 
     ###########################################################################################
 
