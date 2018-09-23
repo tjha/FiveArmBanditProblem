@@ -28,9 +28,9 @@ class Arm:
     # Get random float between 0 and 1, return 0 if greater than mean, 1 otherwise
     def reward(self):
         if random.random() > self.mean:
-            return 0
+            return 0.0
         else:
-            return 1
+            return 1.0
     
 
 
