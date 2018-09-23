@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import math
 
 # Tejas Jha
 # 24 September 2018
@@ -86,9 +87,44 @@ class ModelClass:
         self.values = values
         self.c = c
 
-    def step(self, arms):
-        # Select the Action with the largest upper bound
-        print("hello")
+    def step(self, iteration, arms):
+
+        print(iteration)
+
+        # Step 1 -Select the Action with the largest upper bound
+        # If count is 0, the index is given priority
+        all_zero_idx = [idx for idx, val in enumerate(self.counts) if val == 0]
+        selected_arm_idx = 0
+        #updated_val = 0
+        if len(all_zero_idx) > 0:
+            selected_arm_idx = random.choice(all_zero_idx)
+        else:
+            # Select the arm with the largest estimated upper bound
+            estimates = self.values
+
+            for idx in range(len(estimates)):
+                estimates[idx] += self.c*math.sqrt(math.log(iteration)/self.counts[idx])
+            
+            max_value = max(estimates)
+            all_max_idx = [idx for idx, val in enumerate(estimates) if val == max_value]
+            selected_arm_idx = all_max_idx[0]
+
+            # (Break ties randomly)
+            if len(all_max_idx) > 1:
+                # Randomly choose an index from all_max_idx
+                selected_arm_idx = random.choice(all_max_idx)
+            
+            #updated_val = estimates[selected_arm_idx]
+        
+        # Step 2 - Get the reward for that arm
+        reward = arms[selected_arm_idx].reward()
+        # Step 3 - Update count
+        self.counts[selected_arm_idx] += 1
+        # Step 4 - Update action-value
+        self.values[selected_arm_idx] += (1 / self.counts[selected_arm_idx])*(reward - self.values[selected_arm_idx])
+        
+            
+
 
     def getValues(self):
         return self.values
@@ -169,7 +205,7 @@ def upper_confidence_bound_alg(c, arms):
 
         # Perform a single run through algorithm using 1000 time steps
         for i in range(1000):
-            model.step(arms)
+            model.step(i+1,arms)
 
         if (current_run + 1) % 500 == 0:
             print("     Completed Run #" + str(current_run + 1))
@@ -190,14 +226,14 @@ def main():
     # for each epsilon = [0.01, 0.1, 0.3]
     epsilon_list = [0.01, 0.1, 0.3]
     for epsilon in epsilon_list:
-        #epsilon_greedy_alg(epsilon, arms)
+        epsilon_greedy_alg(epsilon, arms)
         print("Finished with Epsilon-Greedy Algorithm for epsilon = " + str(epsilon))
     
     # Perform Optimistic Initial Value algorithm with epsilon = 0 (always greedy)
     # for each Q1 = [1,5,50]
     initial_val_list = [1.0, 5.0, 50.0]
     for val in initial_val_list:
-        #optimistic_initial_value_alg(val,arms)
+        optimistic_initial_value_alg(val,arms)
         print("Finished with Optimistic Initial Value Algorithm for initial value = " + str(val))
 
     # Perform UCB algorithm with Q1 = 0
