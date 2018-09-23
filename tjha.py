@@ -1,6 +1,7 @@
 import numpy as np
 import random
 import math
+import matplotlib.pyplot as plt
 
 ######################################################
 # Tejas Jha
@@ -66,9 +67,11 @@ class EpsilonGreedy:
         self.epsilon = epsilon
         self.counts = counts
         self.values = values
+        self.regret = [ ]
+        self.rewards = [ ]
 
     # Performs a single time step update through epsilon-greedy algorithm
-    def step(self, arms):
+    def step(self, iterations, arms):
         # Step 1 - Determine which arm to pick next
         selected_arm_idx = 0
         if random.random() > self.epsilon:
@@ -94,9 +97,22 @@ class EpsilonGreedy:
         # Step 4 - Update action-value
         self.values[selected_arm_idx] += (1 / self.counts[selected_arm_idx])*(reward - self.values[selected_arm_idx])
 
+        # Update reward at time step
+        self.rewards.append(reward)
+
+        # Update cummulative regret value for this time step
+        self.regret.append(iterations*(0.8) - sum(self.rewards))
+
     # Get the action-value estimates for EpsilonGreedy
     def getValues(self):
         return self.values
+
+    # Get the Cumulative regret at certain moment in time
+    def getRegret(self):
+        return self.regret
+
+    def getRewards(self):
+        return self.rewards
 
 # Creation of another Class variable that may be fixed to be universal type
 class ModelClass:
@@ -140,9 +156,6 @@ class ModelClass:
         # Step 4 - Update action-value
         self.values[selected_arm_idx] += (1 / self.counts[selected_arm_idx])*(reward - self.values[selected_arm_idx])
         
-            
-
-
     def getValues(self):
         return self.values
 
@@ -155,24 +168,35 @@ def epsilon_greedy_alg(epsilon, arms):
     print("**********************************************************************")
     print("Performing Epsilon-Greedy Algorithm 2000 times with epsilon = " + str(epsilon))
 
+    # Store sum of regrets
+    regrets_avg = np.zeros([1,1000])
+
     # Loop through algorithm for 2000 runs
     for current_run in range(2000):
 
         # Each run should set a distinct random seed
-        random.seed()
+        random.seed(current_run + 1)
         # Create EpsilonGreedy data type initialized with epsilon and 0 for counts and values
         model = EpsilonGreedy(epsilon, np.zeros(5), np.zeros(5))
 
         # Perform a single run through algorithm using 1000 time steps
         for i in range(1000):
-            model.step(arms)
+            model.step(i+1, arms)
+
+        # Update sum of regrets
+        np_arr = np.array(model.getRegret())
+        np_arr = np_arr.reshape(1,1000)
+        np_arr = np_arr/2000.0
+        regrets_avg += np_arr
 
         if (current_run + 1) % 500 == 0:
             print("     Completed Run #" + str(current_run + 1))
             print(model.getValues())
 
     print("Completed Runs for epsilon = " + str(epsilon))
+    #print("regrets_avg = " + str(regrets_avg))
     print("**********************************************************************")
+    return regrets_avg
 
 
 # Optimistic Initial Value Algorithm run 2000 times given inital value (assume greedy arm selection)
@@ -182,19 +206,22 @@ def optimistic_initial_value_alg(initial_val, arms):
     print("**********************************************************************")
     print("Performing Optimistic Initial Value Algorithm 2000 times with inital value = " + str(initial_val))
 
+    # Store sum of regrests
+    #regrets_sum = np.empty([1000,1])
+
     # Loop through algorithm for 2000 runs
     for current_run in range(2000):
 
         # Each run should set a distinct random seed
-        random.seed()
+        random.seed(current_run + 1)
         # Create EpsilonGreedy data type initialized with epsilon = 0 and 0 for counts and inital values
         initialized_values_array = np.full(5,initial_val)
         model = EpsilonGreedy(0, np.zeros(5), initialized_values_array)
 
-
         # Perform a single run through algorithm using 1000 time steps
         for i in range(1000):
-            model.step(arms)
+            model.step(i+1,arms)
+            #regrets.append(model.getRegret())
 
         if (current_run + 1) % 500 == 0:
             print("     Completed Run #" + str(current_run + 1))
@@ -215,7 +242,7 @@ def upper_confidence_bound_alg(c, arms):
     for current_run in range(2000):
 
         # Each run should set a distinct random seed
-        random.seed()
+        random.seed(current_run + 1)
         
         # Initialize model with c value
         model = ModelClass(0,np.zeros(5),np.zeros(5),c)
@@ -242,12 +269,22 @@ def main():
     means = [0.1, 0.275, 0.45, 0.625, 0.8]
     arms = np.array(list(map(Arm, means)))
 
+    plt.figure(1)
+    times = np.array(range(1,1001)).reshape(1,1000)
+    regrets_avg = np.zeros([3,1000])
+
     # Perform Epsilon-Greedy algorithm with Q1 = 0 and 
     # for each epsilon = [0.01, 0.1, 0.3]
     epsilon_list = [0.01, 0.1, 0.3]
-    for epsilon in epsilon_list:
-        #epsilon_greedy_alg(epsilon, arms)
-        print("Finished with Epsilon-Greedy Algorithm for epsilon = " + str(epsilon))
+    for i in range(len(epsilon_list)):
+        regrets_avg[i] = epsilon_greedy_alg(epsilon_list[i], arms)
+        print("Finished with Epsilon-Greedy Algorithm for epsilon = " + str(epsilon_list[i]))
+
+    plt.subplot(331)
+    plt.plot(times[0], regrets_avg[0], 'r')
+    plt.plot(times[0], regrets_avg[1], 'b')
+    plt.plot(times[0], regrets_avg[2], 'g')
+    plt.show()
     
     # Perform Optimistic Initial Value algorithm with epsilon = 0 (always greedy)
     # for each Q1 = [1,5,50]
@@ -260,7 +297,7 @@ def main():
     # for each c = [0.2, 1, 2]
     c_vals = [0.2, 1, 2]
     for val in c_vals:
-        upper_confidence_bound_alg(val, arms)
+        #upper_confidence_bound_alg(val, arms)
         print("Finished with UCB Algorithm for c = " + str(val))
 
 
