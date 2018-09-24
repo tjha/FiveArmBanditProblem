@@ -485,7 +485,7 @@ class uniform_policy(Policy):
         Policy.__init__(self, distributions=np.full([25,4],0.25))
 
 
-# Helper function to calculate updated V(s)
+# Helper function to calculate updated V(s) for policy iteration
 def getSum(V, P, policy, gamma, s):
     external_sum = 0
     for a in range(4):
@@ -498,8 +498,22 @@ def getSum(V, P, policy, gamma, s):
         external_sum += policy.getDistributions()[s][a] * internal_sum
     return external_sum
 
+# Helper function to calculate updated V(s) for value iteration
+def getMaxSum(V, P, gamma, s):
+    max_value = -10
+    for a in range(4):
+        internal_sum = 0
+        for entry in range(len(P[s][a])):
+            prob = P[s][a][entry][0]
+            next_state = P[s][a][entry][1]
+            reward = P[s][a][entry][2]
+            internal_sum += prob * (reward + gamma * V[next_state//5][next_state%5])
+        if internal_sum > max_value:
+            max_value = internal_sum
+    return max_value
+
 # Helper function to get dictionary of updated probabilities
-def getProb(P, policy, gamma, s, V):
+def getProb(P, gamma, s, V):
     best_actions = []
     best_estimate = -10
     for a in range(4):
@@ -556,11 +570,71 @@ def policy_iter(P, theta=0.0001, gamma=0.9):
         for s in range(25):
             old_action = policy.get_state_action(s)
             V = policy_eval(P, policy=policy, theta=theta, gamma=gamma)
-            policy.set_state_action(s,getProb(P,policy,gamma,s,V))
+            policy.set_state_action(s,getProb(P,gamma,s,V))
             if old_action != policy.get_state_action(s):
                 policy_stable = False
     V = policy_eval(P, policy=policy, theta=theta, gamma=gamma)
     return V, policy
+
+# Value Iteration Algorithm
+def value_iter(P, theta=0.001, gamma=0.9):
+    V = np.zeros([5,5])
+    delta = 1
+    while delta >= theta:
+        delta = 0
+        for s in range(25):
+            v = V[s//5][s%5]
+            V[s//5][s%5] = getMaxSum(V,P,gamma,s)
+            delta = max(delta, abs(v - V[s//5][s%5]))
+
+    policy = uniform_policy()
+    for s in range(25):
+        policy.set_state_action(s,getProb(P,gamma,s,V))
+    
+    return V, policy
+
+# Episodic Task Transition Probabilities
+def gridworld_ep(slip_prob=0.2):
+    # slip_prob is the probability that the agent slips
+
+    # Initialize P organization
+    P = {}
+    for s in range(25):
+        P[s] = {0: [], 1: [], 2: [], 3: []}
+
+    # Initialize P values
+    for s in range(25):
+        if s == 1:
+            for a in range(4):
+                P[s][a].append([1.0, 21, 10.0])
+        elif s == 3:
+            for a in range(4):
+                P[s][a].append([1.0, 13, 5.0])
+        elif s != 21 and s!= 13:
+            zero = [0, 1, 2 ,3]
+            neg = [ ]
+
+            if s < 5:
+                zero.remove(0)
+                neg.append(0)
+
+            if s % 5 == 4:
+                zero.remove(1)
+                neg.append(1)
+
+            if s > 19:
+                zero.remove(2)
+                neg.append(2)
+            
+            if s % 5 ==0:
+                zero.remove(3)
+                neg.append(3)
+            
+            fill(P, s, neg, zero)
+    
+
+    return P
+            
 
 def main():
 
@@ -696,11 +770,38 @@ def main():
     P = gridworld(slip_prob=0.2)
     V = policy_eval(P)
     np.set_printoptions(precision=2)
+    print("******* Part (b) ********")
     print(V)
 
     V, policy = policy_iter(P)
+    print("******* Part (c) ********")
     print(V)
     policy.print()
+
+    V, policy = value_iter(P)
+    print("******* Part (d) ********")
+    print(V)
+    policy.print()
+
+    P = gridworld_ep(slip_prob=0.2)
+    print(P)
+    V, policy = value_iter(P,gamma=1.0)
+    print("******* Part (e) ********")
+    print("gamma = 1.0")
+    print(V)
+    policy.print()
+    print("gamma = 0.8")
+    V, policy = value_iter(P,gamma=0.8)
+    print(V)
+    policy.print()
+    print("gamma = 0.9")
+    V, policy = value_iter(P,gamma=0.9)
+    print(V)
+    policy.print()
+
+
+
+
 
 
 
