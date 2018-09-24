@@ -372,7 +372,195 @@ def upper_confidence_bound_alg(c, arms):
     return regrets_avg, avg_rewards, percent_optimal_action
 
 
-        
+# Question 5 Functions
+
+# Helper function to assist inintialization of P
+def fill(P, s, neg, zero):
+    for elem in neg:
+        P[s][elem].append([0.8, s, -1.0])
+        P[s][elem].append([0.2, s, 0.0])
+    for elem in zero:
+        if elem == 0:
+            P[s][elem].append([0.8, s - 5, 0.0])
+        elif elem == 1:
+            P[s][elem].append([0.8, s + 1, 0.0])
+        elif elem == 2:
+            P[s][elem].append([0.8, s + 5, 0.0])
+        elif elem == 3:
+            P[s][elem].append([0.8, s - 1, 0.0])
+        else: 
+            print("Error: action was entered larger than 3!")
+        P[s][elem].append([0.2, s, 0.0])
+
+# Function to work out the transition probability and rewards for the MDP described in the problem statement
+def gridworld(slip_prob = 0.2):
+    # slip_prob is the probability that the agent slips
+
+    # Initialize P organization
+    P = {}
+    for s in range(25):
+        P[s] = {0: [], 1: [], 2: [], 3: []}
+
+    # Initialize P values
+    for s in range(25):
+        if s == 1:
+            for a in range(4):
+                P[s][a].append([1.0, 21, 10.0])
+        elif s == 3:
+            for a in range(4):
+                P[s][a].append([1.0, 13, 5.0])
+        else:
+            zero = [0, 1, 2 ,3]
+            neg = [ ]
+
+            if s < 5:
+                zero.remove(0)
+                neg.append(0)
+
+            if s % 5 == 4:
+                zero.remove(1)
+                neg.append(1)
+
+            if s > 19:
+                zero.remove(2)
+                neg.append(2)
+            
+            if s % 5 ==0:
+                zero.remove(3)
+                neg.append(3)
+            
+            fill(P, s, neg, zero)
+
+    return P
+
+# Policy class assumes map is square
+class Policy:
+
+    def __init__(self, distributions=np.full([25,4],0)):
+        self.distributions = distributions
+    
+    def getDistributions(self):
+        return self.distributions
+
+    def setDistributions(self, distributions):
+        self.distributions = distributions
+
+    def print(self):
+        dim = int(math.sqrt(self.distributions.shape[0]))
+        for y in range(dim):
+            output_str = ""
+            for x in range(dim):
+                max_value = max(self.distributions[5*y+x])
+                all_max_idx = [idx for idx, val in enumerate(self.distributions[5*y+x]) if val == max_value]
+                for idx in all_max_idx:
+                    if idx == 0:
+                        output_str += "n"
+                    elif idx == 1:
+                        output_str += "e"
+                    elif idx == 2:
+                        output_str += "s"
+                    elif idx == 3:
+                        output_str += "w"
+                    else:
+                        print("Error: wrong idx in printing Policy")
+                output_str += " "
+            print(output_str)
+
+    def get_state_action(self, state):
+        #max_prob = max(self.distributions[state])
+        #all_max_idx = [idx for idx, val in enumerate(self.distributions[state]) if val == max_value]
+        all_prob = self.distributions[state]
+        expectation = 0
+        for i in range(4):
+            expectation += i*all_prob[i]
+        return expectation
+
+    def set_state_action(self, state, d):
+        for key, value in d.items():
+            self.distributions[state][key] = value
+
+class uniform_policy(Policy):
+
+    def __init__(self):
+        Policy.__init__(self, distributions=np.full([25,4],0.25))
+
+
+# Helper function to calculate updated V(s)
+def getSum(V, P, policy, gamma, s):
+    external_sum = 0
+    for a in range(4):
+        internal_sum = 0
+        for entry in range(len(P[s][a])):
+            prob = P[s][a][entry][0]
+            next_state = P[s][a][entry][1]
+            reward = P[s][a][entry][2]
+            internal_sum += prob * (reward + gamma * V[next_state//5][next_state%5])
+        external_sum += policy.getDistributions()[s][a] * internal_sum
+    return external_sum
+
+# Helper function to get dictionary of updated probabilities
+def getProb(P, policy, gamma, s, V):
+    best_actions = []
+    best_estimate = -10
+    for a in range(4):
+        estimate = 0
+        for entry in range(len(P[s][a])):
+            prob = P[s][a][entry][0]
+            next_state = P[s][a][entry][1]
+            reward = P[s][a][entry][2]
+            estimate += prob * (reward + gamma * V[next_state//5][next_state%5])
+        if (estimate - best_estimate) > 0.01:
+            best_actions = [a]
+            best_estimate = estimate
+        elif abs(estimate - best_estimate) < 0.01:
+            # Note: Comparing floats, so leaving precision to 2 decimal places
+            best_actions.append(a)
+            
+    updated_distributions = { }
+    if len(best_actions) == 1:
+        for a in best_actions:
+            updated_distributions[a] = 1
+        for a in range(4):
+            if a != best_actions[0]:
+                updated_distributions[a] = 0
+    if len(best_actions) == 2:
+        for a in best_actions:
+            updated_distributions[a] = 0.5
+        for a in range(4):
+            if a != best_actions[0] and a != best_actions[1]:
+                updated_distributions[a] = 0
+
+    # Nothing said about ties between 3 or 4 actions...
+    
+    return updated_distributions
+
+
+# Policy Evaluation Algorithm
+def policy_eval(P, policy=uniform_policy(), theta=0.0001, gamma=0.9):
+    V = np.zeros([5,5])
+    delta = 1
+    while delta >= theta:
+        delta = 0
+        for s in range(25):
+            v = V[s//5][s%5]
+            V[s//5][s%5] = getSum(V,P,policy,gamma,s)
+            delta = max(delta, abs(v - V[s//5][s%5]))
+    return V
+
+# Policy Iteration Algorithm
+def policy_iter(P, theta=0.0001, gamma=0.9):
+    policy_stable = False
+    policy = uniform_policy()
+    while policy_stable == False:
+        policy_stable = True
+        for s in range(25):
+            old_action = policy.get_state_action(s)
+            V = policy_eval(P, policy=policy, theta=theta, gamma=gamma)
+            policy.set_state_action(s,getProb(P,policy,gamma,s,V))
+            if old_action != policy.get_state_action(s):
+                policy_stable = False
+    V = policy_eval(P, policy=policy, theta=theta, gamma=gamma)
+    return V, policy
 
 def main():
 
@@ -393,7 +581,7 @@ def main():
     # for each epsilon = [0.01, 0.1, 0.3]
     epsilon_list = [0.01, 0.1, 0.3]
     for i in range(len(epsilon_list)):
-        regrets_avg[i], avg_rewards[i], percent_optimal_action[i] = epsilon_greedy_alg(epsilon_list[i], arms)
+        #regrets_avg[i], avg_rewards[i], percent_optimal_action[i] = epsilon_greedy_alg(epsilon_list[i], arms)
         print("Finished with Epsilon-Greedy Algorithm for epsilon = " + str(epsilon_list[i]))
 
     plt.subplot(331)
@@ -431,7 +619,7 @@ def main():
     # for each Q1 = [1,5,50]
     initial_val_list = [1.0, 5.0, 50.0]
     for i in range(len(initial_val_list)):
-        regrets_avg[i], avg_rewards[i], percent_optimal_action[i] = optimistic_initial_value_alg(initial_val_list[i],arms)
+        #regrets_avg[i], avg_rewards[i], percent_optimal_action[i] = optimistic_initial_value_alg(initial_val_list[i],arms)
         print("Finished with Optimistic Initial Value Algorithm for initial value = " + str(initial_val_list[i]))
 
     plt.subplot(334)
@@ -469,7 +657,7 @@ def main():
     # for each c = [0.2, 1, 2]
     c_vals = [0.2, 1, 2]
     for i in range(len(c_vals)):
-        regrets_avg[i], avg_rewards[i], percent_optimal_action[i] = upper_confidence_bound_alg(c_vals[i], arms)
+        #regrets_avg[i], avg_rewards[i], percent_optimal_action[i] = upper_confidence_bound_alg(c_vals[i], arms)
         print("Finished with UCB Algorithm for c = " + str(c_vals[i]))
 
     plt.subplot(337)
@@ -504,7 +692,19 @@ def main():
     ###########################################################################################
 
     # Question 5 Code
+    
+    P = gridworld(slip_prob=0.2)
+    V = policy_eval(P)
+    np.set_printoptions(precision=2)
+    print(V)
 
+    V, policy = policy_iter(P)
+    print(V)
+    policy.print()
+
+
+
+    
 
 
 
